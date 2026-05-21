@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Todo Dashboard</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- Theme toggle — fixed top-right corner -->
+  <button
+    id="theme-toggle"
+    aria-label="Switch to dark mode"
+    title="Toggle theme"
+  >🌙</button>
+
+  <div class="dashboard-container">
+    <h1 class="dashboard-title">My Dashboard</h1>
+
+    <div class="dashboard-grid">
+
+      <!-- Greeting Widget -->
+      <section id="greeting-widget" class="widget-card" aria-label="Greeting">
+        <h2 class="widget-title">Greeting</h2>
+        <div id="greeting-time" class="greeting-time">--:--</div>
+        <div id="greeting-date" class="greeting-date">Loading…</div>
+        <div id="greeting-message" class="greeting-message">Hello</div>
+        <form id="greeting-form" class="greeting-form" novalidate>
+          <label for="greeting-name-input" class="sr-only">Your name</label>
+          <input
+            id="greeting-name-input"
+            type="text"
+            maxlength="100"
+            placeholder="Enter your name"
+            autocomplete="off"
+          />
+          <button type="submit">Save</button>
+        </form>
+      </section>
+
+      <!-- Focus Timer Widget -->
+      <section id="timer-widget" class="widget-card" aria-label="Focus Timer">
+        <h2 class="widget-title">Focus Timer</h2>
+        <div id="timer-display" class="timer-display" aria-live="off">25:00</div>
+        <div
+          id="timer-notification"
+          class="timer-notification"
+          role="status"
+          hidden
+        >Time's up! Take a break.</div>
+        <div id="timer-controls" class="timer-controls">
+          <button id="timer-start">Start</button>
+          <button id="timer-stop" disabled>Stop</button>
+          <button id="timer-reset">Reset</button>
+        </div>
+      </section>
+
+      <!-- Todo List Widget -->
+      <section id="todo-widget" class="widget-card" aria-label="To-Do List">
+        <h2 class="widget-title">To-Do List</h2>
+        <form id="todo-form" class="todo-form" novalidate>
+          <label for="todo-input" class="sr-only">New task description</label>
+          <input
+            id="todo-input"
+            type="text"
+            maxlength="200"
+            placeholder="Add a task…"
+            autocomplete="off"
+          />
+          <button type="submit">Add</button>
+        </form>
+        <p id="todo-error" class="error-msg" role="alert" hidden></p>
+        <ul id="todo-list" class="todo-list" aria-label="Task list">
+          <!-- rendered by TodoWidget.render() -->
+        </ul>
+      </section>
+
+      <!-- Quick Links Widget -->
+      <section id="links-widget" class="widget-card" aria-label="Quick Links">
+        <h2 class="widget-title">Quick Links</h2>
+        <form id="links-form" class="links-form" novalidate>
+          <label for="link-label-input" class="sr-only">Link label</label>
+          <input
+            id="link-label-input"
+            type="text"
+            maxlength="50"
+            placeholder="Label"
+            autocomplete="off"
+          />
+          <label for="link-url-input" class="sr-only">Link URL</label>
+          <input
+            id="link-url-input"
+            type="text"
+            maxlength="2048"
+            placeholder="https://…"
+            autocomplete="off"
+          />
+          <button type="submit">Add</button>
+        </form>
+        <p id="links-error" class="error-msg" role="alert" hidden></p>
+        <div id="links-list" class="links-list" aria-label="Saved links">
+          <!-- rendered by LinksWidget.render() -->
+        </div>
+      </section>
+
+    </div><!-- /.dashboard-grid -->
+  </div><!-- /.dashboard-container -->
+
+  <script src="js/app.js"></script>
+</body>
+</html>
