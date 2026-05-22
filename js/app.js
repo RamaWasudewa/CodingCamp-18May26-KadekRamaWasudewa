@@ -282,16 +282,53 @@ function formatTimerTime(secs) {
   return `${mm}:${ss}`;
 }
 
+const TIMER_MODES = {
+  focus: {
+    label: 'Pomodoro',
+    duration: 25 * 60,
+    notification: "Time's up! Take a break.",
+  },
+  short: {
+    label: 'Short Break',
+    duration: 5 * 60,
+    notification: 'Break is over! Ready to focus?',
+  },
+  long: {
+    label: 'Long Break',
+    duration: 15 * 60,
+    notification: 'Long break is over! Ready to focus?',
+  },
+};
+
 const TimerWidget = {
   // Expose pure function for testing
   formatTime: formatTimerTime,
 
-  /** @type {{ remaining: number, intervalId: number|null, running: boolean, startedAt: number|null }} */
+  /** @type {{ mode: 'focus'|'short'|'long', remaining: number, intervalId: number|null, running: boolean, startedAt: number|null }} */
   timerState: {
+    mode: 'focus',
     remaining: 1500,
     intervalId: null,
     running: false,
     startedAt: null,   // Date.now() snapshot for the last persisted remaining value
+  },
+
+  /**
+   * Return a known timer mode, falling back to Pomodoro for old/corrupt state.
+   * @param {string} mode
+   * @returns {'focus'|'short'|'long'}
+   */
+  _normaliseMode(mode) {
+    return Object.prototype.hasOwnProperty.call(TIMER_MODES, mode) ? mode : 'focus';
+  },
+
+  /**
+   * Return the full duration for a timer mode.
+   * @param {string} mode
+   * @returns {number}
+   */
+  _getModeDuration(mode) {
+    return TIMER_MODES[this._normaliseMode(mode)].duration;
   },
 
   /**
@@ -300,6 +337,7 @@ const TimerWidget = {
    */
   _persist() {
     Storage.set('timer_state', {
+      mode:      this.timerState.mode,
       remaining: this.timerState.remaining,
       running:   this.timerState.running,
       startedAt: this.timerState.startedAt,
@@ -315,7 +353,8 @@ const TimerWidget = {
     const saved = Storage.get('timer_state', null);
     if (!saved) return; // no saved state — use default 25:00
 
-    let { remaining, running, startedAt } = saved;
+    let { mode, remaining, running, startedAt } = saved;
+    mode = this._normaliseMode(mode);
 
     if (running && startedAt) {
       // Calculate elapsed seconds since the timer snapshot was last saved
@@ -323,6 +362,7 @@ const TimerWidget = {
       remaining = Math.max(0, remaining - elapsed);
     }
 
+    this.timerState.mode      = mode;
     this.timerState.remaining = remaining;
     this.timerState.running   = false;   // interval must be re-created after restore
     this.timerState.startedAt = null;
@@ -352,10 +392,35 @@ const TimerWidget = {
     const btnStart = document.getElementById('timer-start');
     const btnStop  = document.getElementById('timer-stop');
     const btnReset = document.getElementById('timer-reset');
+    const modeButtons = document.querySelectorAll('[data-timer-mode]');
 
     if (btnStart) btnStart.addEventListener('click', () => this.start());
     if (btnStop)  btnStop.addEventListener('click',  () => this.stop());
     if (btnReset) btnReset.addEventListener('click', () => this.reset());
+    modeButtons.forEach((button) => {
+      button.addEventListener('click', () => this.selectMode(button.dataset.timerMode));
+    });
+  },
+
+  /**
+   * Switch timer mode and reset the countdown to that mode's full duration.
+   * @param {string} mode
+   */
+  selectMode(mode) {
+    const nextMode = this._normaliseMode(mode);
+
+    clearInterval(this.timerState.intervalId);
+    this.timerState.mode       = nextMode;
+    this.timerState.remaining  = this._getModeDuration(nextMode);
+    this.timerState.intervalId = null;
+    this.timerState.running    = false;
+    this.timerState.startedAt  = null;
+
+    const notification = document.getElementById('timer-notification');
+    if (notification) notification.setAttribute('hidden', '');
+
+    this._persist();
+    this.render();
   },
 
   /**
@@ -388,7 +453,7 @@ const TimerWidget = {
   },
 
   /**
-   * Stop any active countdown and reset the display to 25:00.
+   * Stop any active countdown and reset the display to the current mode duration.
    * Hide the notification.
    * Requirement 3.5
    */
@@ -396,10 +461,10 @@ const TimerWidget = {
     clearInterval(this.timerState.intervalId);
     this.timerState.intervalId = null;
     this.timerState.running    = false;
-    this.timerState.remaining  = 1500;
+    this.timerState.remaining  = this._getModeDuration(this.timerState.mode);
     this.timerState.startedAt  = null;
 
-    Storage.remove('timer_state');
+    this._persist();
 
     const notification = document.getElementById('timer-notification');
     if (notification) notification.setAttribute('hidden', '');
@@ -421,7 +486,7 @@ const TimerWidget = {
       this.timerState.running    = false;
       this.timerState.startedAt  = null;
 
-      Storage.remove('timer_state');
+      this._persist();
 
       const notification = document.getElementById('timer-notification');
       if (notification) notification.removeAttribute('hidden');
@@ -452,11 +517,21 @@ const TimerWidget = {
     const display = document.getElementById('timer-display');
     if (display) display.textContent = formatTimerTime(remaining);
 
+    const notification = document.getElementById('timer-notification');
+    if (notification) notification.textContent = TIMER_MODES[this.timerState.mode].notification;
+
     const btnStart = document.getElementById('timer-start');
     const btnStop  = document.getElementById('timer-stop');
+    const modeButtons = document.querySelectorAll('[data-timer-mode]');
 
     if (btnStart) btnStart.disabled = running || remaining === 0;
     if (btnStop)  btnStop.disabled  = !running;
+    modeButtons.forEach((button) => {
+      const active = button.dataset.timerMode === this.timerState.mode;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+      button.disabled = running;
+    });
   },
 };
 
@@ -468,6 +543,9 @@ const TimerWidget = {
 const TodoWidget = {
   /** @type {number|null} Auto-hide timer handle for the error message */
   _errorTimer: null,
+
+  /** @type {string|null} ID of the task currently being dragged */
+  _draggedTaskId: null,
 
   /**
    * Restore tasks from State (already loaded by Storage.loadAll), render,
@@ -491,6 +569,13 @@ const TodoWidget = {
         this.addTask(description);
         if (input) input.value = '';
       });
+    }
+
+    const list = document.getElementById('todo-list');
+    if (list) {
+      list.addEventListener('dragover', (e) => this.handleDragOver(e));
+      list.addEventListener('drop', (e) => this.handleDrop(e));
+      list.addEventListener('dragend', () => this.handleDragEnd());
     }
   },
 
@@ -682,6 +767,68 @@ const TodoWidget = {
   },
 
   /**
+   * Start dragging a task row.
+   * @param {DragEvent} event
+   * @param {string} id
+   */
+  handleDragStart(event, id) {
+    this._draggedTaskId = id;
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', id);
+
+    const row = event.target.closest('li[data-id]');
+    if (row) row.classList.add('dragging');
+  },
+
+  /**
+   * Move the dragged row before or after the row currently under the pointer.
+   * @param {DragEvent} event
+   */
+  handleDragOver(event) {
+    if (!this._draggedTaskId) return;
+
+    const list = document.getElementById('todo-list');
+    const overRow = event.target.closest('li[data-id]');
+    const draggedRow = list ? list.querySelector(`li[data-id="${this._draggedTaskId}"]`) : null;
+    if (!list || !overRow || !draggedRow || overRow === draggedRow) return;
+
+    event.preventDefault();
+    const rect = overRow.getBoundingClientRect();
+    const insertAfter = event.clientY > rect.top + rect.height / 2;
+    list.insertBefore(draggedRow, insertAfter ? overRow.nextSibling : overRow);
+  },
+
+  /**
+   * Persist the DOM order after a drag-and-drop reorder.
+   * @param {DragEvent} event
+   */
+  handleDrop(event) {
+    if (!this._draggedTaskId) return;
+
+    event.preventDefault();
+    const list = document.getElementById('todo-list');
+    if (!list) return;
+
+    const orderedIds = Array.from(list.querySelectorAll('li[data-id]')).map((li) => li.dataset.id);
+    State.tasks = orderedIds
+      .map((id) => State.tasks.find((task) => task.id === id))
+      .filter(Boolean);
+    Storage.set('tasks', State.tasks);
+    this.handleDragEnd();
+    this.render();
+  },
+
+  /**
+   * Clear drag state and row styling.
+   */
+  handleDragEnd() {
+    this._draggedTaskId = null;
+    document.querySelectorAll('#todo-list li.dragging').forEach((row) => {
+      row.classList.remove('dragging');
+    });
+  },
+
+  /**
    * Rebuild the #todo-list from State.tasks.
    * - Completed tasks get a strikethrough + reduced-opacity style (Requirement 4.5).
    * - Shows an empty-list placeholder when there are no tasks (Requirement 4.12).
@@ -703,6 +850,19 @@ const TodoWidget = {
     State.tasks.forEach((task) => {
       const li = document.createElement('li');
       li.dataset.id = task.id;
+
+      // Drag handle for manual task reordering
+      const dragHandle = document.createElement('button');
+      dragHandle.type = 'button';
+      dragHandle.className = 'task-drag-handle';
+      dragHandle.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-down-up" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path fill-rule="evenodd" d="M11.5 15a.5.5 0 0 0 .5-.5V2.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L11 2.707V14.5a.5.5 0 0 0 .5.5m-7-14a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L4 13.293V1.5a.5.5 0 0 1 .5-.5"/>
+        </svg>
+      `;
+      dragHandle.draggable = true;
+      dragHandle.setAttribute('aria-label', `Drag task "${task.description}" to reorder`);
+      dragHandle.addEventListener('dragstart', (event) => this.handleDragStart(event, task.id));
 
       // Checkbox for toggling done state
       const checkbox = document.createElement('input');
@@ -730,6 +890,7 @@ const TodoWidget = {
       btnDelete.setAttribute('aria-label', `Delete task "${task.description}"`);
       btnDelete.addEventListener('click', () => this.deleteTask(task.id));
 
+      li.appendChild(dragHandle);
       li.appendChild(checkbox);
       li.appendChild(span);
       li.appendChild(btnEdit);

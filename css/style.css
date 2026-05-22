@@ -21,7 +21,7 @@
   --font-size-md: 1rem;       /* 16px */
   --font-size-lg: 1.125rem;   /* 18px */
   --font-size-xl: 1.25rem;    /* 20px */
-  --font-size-timer: 3rem;
+  --font-size-timer: 4rem;
 
   /* Spacing */
   --gap: 1.5rem;
@@ -308,9 +308,27 @@ input[type="text"]::placeholder {
 .timer-display {
   font-family: var(--font-mono);
   font-size: var(--font-size-timer);
+  color: #3a5ce6;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-align: center;
+}
+
+.timer-modes {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+button.timer-mode {
+  background-color: transparent;
+  color: var(--accent);
+}
+
+button.timer-mode.active {
+  background-color: var(--accent);
+  color: #fff;
 }
 
 .timer-notification {
@@ -360,6 +378,32 @@ input[type="text"]::placeholder {
   border-radius: var(--radius);
   background-color: var(--bg);
   flex-wrap: wrap;
+}
+
+.todo-list li.dragging {
+  opacity: 0.55;
+  border-color: var(--accent);
+}
+
+.task-drag-handle {
+  background-color: transparent;
+  color: var(--muted);
+  border-color: var(--surface-border);
+  cursor: grab;
+  padding: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.task-drag-handle:active {
+  cursor: grabbing;
+}
+
+.task-drag-handle:hover:not(:disabled) {
+  background-color: var(--surface);
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .task-text {

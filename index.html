@@ -32,7 +32,12 @@
 
       <!-- Focus Timer Widget -->
       <section id="timer-widget" class="widget-card" aria-label="Focus Timer">
-        <h2 class="widget-title">Focus Timer</h2>
+        <h2 class="widget-title" ali>Focus Timer</h2>
+        <div id="timer-modes" class="timer-modes" aria-label="Timer mode">
+          <button type="button" class="timer-mode active" data-timer-mode="focus" aria-pressed="true">Pomodoro</button>
+          <button type="button" class="timer-mode" data-timer-mode="short" aria-pressed="false">Short Break</button>
+          <button type="button" class="timer-mode" data-timer-mode="long" aria-pressed="false">Long Break</button>
+        </div>
         <div id="timer-display" class="timer-display" aria-live="off">25:00</div>
         <div
           id="timer-notification"
