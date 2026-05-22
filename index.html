@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Todo Dashboard</title>
+  <title>To-Do List Life Dashboard</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -21,21 +21,13 @@
 
       <!-- Greeting Widget -->
       <section id="greeting-widget" class="widget-card" aria-label="Greeting">
-        <h2 class="widget-title">Greeting</h2>
+        
         <div id="greeting-time" class="greeting-time">--:--</div>
         <div id="greeting-date" class="greeting-date">Loading…</div>
-        <div id="greeting-message" class="greeting-message">Hello</div>
-        <form id="greeting-form" class="greeting-form" novalidate>
-          <label for="greeting-name-input" class="sr-only">Your name</label>
-          <input
-            id="greeting-name-input"
-            type="text"
-            maxlength="100"
-            placeholder="Enter your name"
-            autocomplete="off"
-          />
-          <button type="submit">Save</button>
-        </form>
+        <div class="greeting-message-row">
+          <div id="greeting-message" class="greeting-message">Hello</div>
+          <button id="greeting-edit-btn" class="btn-edit-name" aria-label="Edit your name" title="Edit name">✏️</button>
+        </div>
       </section>
 
       <!-- Focus Timer Widget -->
@@ -105,6 +97,28 @@
 
     </div><!-- /.dashboard-grid -->
   </div><!-- /.dashboard-container -->
+
+  <!-- Name Modal — shown on first visit when no name is saved -->
+  <div id="name-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title" hidden>
+    <div class="modal-card">
+      <h2 id="modal-title" class="modal-title">Welcome to your Dashboard 👋</h2>
+      <p class="modal-subtitle">What should we call you?</p>
+      <form id="modal-name-form" novalidate>
+        <input
+          id="modal-name-input"
+          type="text"
+          maxlength="100"
+          placeholder="Enter your name"
+          autocomplete="given-name"
+          class="modal-input"
+        />
+        <div class="modal-actions">
+          <button type="submit" id="modal-save-btn">Let's go →</button>
+          <button type="button" id="modal-skip-btn" class="btn-secondary">Skip</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <script src="js/app.js"></script>
 </body>

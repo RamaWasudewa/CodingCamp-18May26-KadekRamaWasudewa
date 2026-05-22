@@ -99,7 +99,8 @@ const State = {
 function formatTime(date) {
   const hh = String(date.getHours()).padStart(2, '0');
   const mm = String(date.getMinutes()).padStart(2, '0');
-  return `${hh}:${mm}`;
+  const ss = String(date.getSeconds()).padStart(2, '0');
+  return `${hh}:${mm}:${ss}`;
 }
 
 /**
@@ -144,25 +145,80 @@ const GreetingWidget = {
 
   /**
    * Restore saved name, render immediately, start the 60-second tick,
-   * and wire the greeting form submit event.
+   * and wire the modal + edit button events.
+   * Shows the name modal on first visit (no saved name).
    */
   init() {
-    // Restore name from State (already loaded by Storage.loadAll)
-    // Render immediately so the user sees the correct time before the first tick
     this.render();
+    setInterval(() => this.tick(), 1000);
 
-    // Start the 60-second interval tick
-    setInterval(() => this.tick(), 60000);
-
-    // Wire the greeting form submit event
-    const form = document.getElementById('greeting-form');
-    if (form) {
-      form.addEventListener('submit', (e) => {
+    // Wire modal form
+    const modalForm = document.getElementById('modal-name-form');
+    if (modalForm) {
+      modalForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        const input = document.getElementById('greeting-name-input');
+        const input = document.getElementById('modal-name-input');
         this.saveName(input ? input.value : '');
+        this.closeModal();
       });
     }
+
+    // Wire Skip button — close modal without saving
+    const skipBtn = document.getElementById('modal-skip-btn');
+    if (skipBtn) {
+      skipBtn.addEventListener('click', () => this.closeModal());
+    }
+
+    // Close modal when clicking the overlay backdrop
+    const overlay = document.getElementById('name-modal');
+    if (overlay) {
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) this.closeModal();
+      });
+    }
+
+    // Close modal with Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        const modal = document.getElementById('name-modal');
+        if (modal && !modal.hidden) this.closeModal();
+      }
+    });
+
+    // Wire the ✏️ edit button in the greeting widget
+    const editBtn = document.getElementById('greeting-edit-btn');
+    if (editBtn) {
+      editBtn.addEventListener('click', () => this.openModal());
+    }
+
+    // Show modal automatically on first visit (no saved name)
+    if (!State.greetingName) {
+      this.openModal();
+    }
+  },
+
+  /**
+   * Open the name modal, pre-fill with current name if any, and focus the input.
+   */
+  openModal() {
+    const modal = document.getElementById('name-modal');
+    const input = document.getElementById('modal-name-input');
+    if (modal) {
+      modal.removeAttribute('hidden');
+      if (input) {
+        input.value = State.greetingName || '';
+        // Defer focus so the browser registers the element as visible first
+        setTimeout(() => input.focus(), 50);
+      }
+    }
+  },
+
+  /**
+   * Close the name modal.
+   */
+  closeModal() {
+    const modal = document.getElementById('name-modal');
+    if (modal) modal.setAttribute('hidden', '');
   },
 
   /**
@@ -182,8 +238,8 @@ const GreetingWidget = {
     const dateEl    = document.getElementById('greeting-date');
     const messageEl = document.getElementById('greeting-message');
 
-    if (timeEl)    timeEl.textContent    = formatTime(now);
-    if (dateEl)    dateEl.textContent    = formatDate(now);
+    if (timeEl)    timeEl.textContent = formatTime(now);
+    if (dateEl)    dateEl.textContent = formatDate(now);
 
     if (messageEl) {
       const greeting = getGreeting(now.getHours());
@@ -230,19 +286,66 @@ const TimerWidget = {
   // Expose pure function for testing
   formatTime: formatTimerTime,
 
-  /** @type {{ remaining: number, intervalId: number|null, running: boolean }} */
+  /** @type {{ remaining: number, intervalId: number|null, running: boolean, startedAt: number|null }} */
   timerState: {
-    remaining: 1500, // 25 * 60 seconds
+    remaining: 1500,
     intervalId: null,
     running: false,
+    startedAt: null,   // Date.now() snapshot when timer last started
   },
 
   /**
-   * Render 25:00, wire button click events.
-   * Requirement 3.1
+   * Persist the current timer state to localStorage so it survives refresh.
+   * Saves: remaining, running, startedAt.
+   */
+  _persist() {
+    Storage.set('timer_state', {
+      remaining: this.timerState.remaining,
+      running:   this.timerState.running,
+      startedAt: this.timerState.startedAt,
+    });
+  },
+
+  /**
+   * Restore timer state from localStorage.
+   * If the timer was running when the page was closed/refreshed, calculate
+   * how many seconds have elapsed since startedAt and subtract from remaining.
+   */
+  _restore() {
+    const saved = Storage.get('timer_state', null);
+    if (!saved) return; // no saved state — use default 25:00
+
+    let { remaining, running, startedAt } = saved;
+
+    if (running && startedAt) {
+      // Calculate elapsed seconds since the timer was last started
+      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      remaining = Math.max(0, remaining - elapsed);
+    }
+
+    this.timerState.remaining = remaining;
+    this.timerState.running   = false;   // interval must be re-created after restore
+    this.timerState.startedAt = null;
+
+    // If there was still time left and the timer was running, resume it
+    if (running && remaining > 0) {
+      this.timerState.startedAt = Date.now();
+      this.timerState.running   = true;
+      this.timerState.intervalId = setInterval(() => this.countdown(), 1000);
+    }
+
+    // If time ran out while the page was closed, show the notification
+    if (remaining === 0) {
+      const notification = document.getElementById('timer-notification');
+      if (notification) notification.removeAttribute('hidden');
+    }
+  },
+
+  /**
+   * Restore persisted state, render, and wire button click events.
    */
   init() {
-    this.timerState = { remaining: 1500, intervalId: null, running: false };
+    this._restore();
     this.render();
 
     const btnStart = document.getElementById('timer-start');
@@ -261,8 +364,10 @@ const TimerWidget = {
   start() {
     if (this.timerState.running || this.timerState.remaining === 0) return;
 
-    this.timerState.running = true;
+    this.timerState.running    = true;
+    this.timerState.startedAt  = Date.now();
     this.timerState.intervalId = setInterval(() => this.countdown(), 1000);
+    this._persist();
     this.render();
   },
 
@@ -275,7 +380,9 @@ const TimerWidget = {
 
     clearInterval(this.timerState.intervalId);
     this.timerState.intervalId = null;
-    this.timerState.running = false;
+    this.timerState.running    = false;
+    this.timerState.startedAt  = null;
+    this._persist();
     this.render();
   },
 
@@ -287,10 +394,12 @@ const TimerWidget = {
   reset() {
     clearInterval(this.timerState.intervalId);
     this.timerState.intervalId = null;
-    this.timerState.running = false;
-    this.timerState.remaining = 1500;
+    this.timerState.running    = false;
+    this.timerState.remaining  = 1500;
+    this.timerState.startedAt  = null;
 
-    // Hide notification on reset (Requirement 3.6)
+    Storage.remove('timer_state');
+
     const notification = document.getElementById('timer-notification');
     if (notification) notification.setAttribute('hidden', '');
 
@@ -305,14 +414,18 @@ const TimerWidget = {
     this.timerState.remaining -= 1;
 
     if (this.timerState.remaining <= 0) {
-      this.timerState.remaining = 0;
+      this.timerState.remaining  = 0;
       clearInterval(this.timerState.intervalId);
       this.timerState.intervalId = null;
-      this.timerState.running = false;
+      this.timerState.running    = false;
+      this.timerState.startedAt  = null;
 
-      // Show notification when countdown reaches 00:00 (Requirement 3.6)
+      Storage.remove('timer_state');
+
       const notification = document.getElementById('timer-notification');
       if (notification) notification.removeAttribute('hidden');
+    } else {
+      this._persist();
     }
 
     this.render();
@@ -334,27 +447,14 @@ const TimerWidget = {
   render() {
     const { remaining, running } = this.timerState;
 
-    // Update display (Requirement 3.3)
     const display = document.getElementById('timer-display');
     if (display) display.textContent = formatTimerTime(remaining);
 
-    // Enforce button state matrix
     const btnStart = document.getElementById('timer-start');
     const btnStop  = document.getElementById('timer-stop');
 
-    if (btnStart) {
-      // Start is disabled when running OR when finished (remaining === 0)
-      // Requirement 3.7
-      btnStart.disabled = running || remaining === 0;
-    }
-
-    if (btnStop) {
-      // Stop is disabled when not running (paused, idle, or finished)
-      // Requirement 3.8
-      btnStop.disabled = !running;
-    }
-
-    // Reset is always enabled — no change needed (it starts enabled in HTML)
+    if (btnStart) btnStart.disabled = running || remaining === 0;
+    if (btnStop)  btnStop.disabled  = !running;
   },
 };
 
@@ -851,10 +951,12 @@ const ThemeWidget = {
       document.body.classList.remove('dark');
     }
 
-    // Update aria-label to describe what the toggle will switch TO
-    // (i.e. the opposite of the currently active theme)
+    // Update icon and aria-label to reflect the currently active theme.
+    // Light mode → show 🌙 (click to go dark)
+    // Dark mode  → show ☀️ (click to go light)
     const btn = document.getElementById('theme-toggle');
     if (btn) {
+      btn.textContent = theme === 'dark' ? '☀️' : '🌙';
       btn.setAttribute(
         'aria-label',
         theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode',

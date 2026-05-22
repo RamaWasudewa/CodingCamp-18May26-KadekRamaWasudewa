@@ -185,7 +185,7 @@ Pure functions (`formatTime`, `formatDate`, `getGreeting`, `formatTimerTime`, `g
     - Test theme toggle persists and is restored on simulated reload
     - _Requirements: 4.2, 4.5, 4.6, 4.7, 6.2, 6.6, 7.3, 7.5_
 
-- [ ] 11. Final checkpoint — Ensure all tests pass
+- [x] 11. Final checkpoint — Ensure all tests pass
   - Run `npx vitest --run` and confirm the full test suite passes with zero failures; ask the user if questions arise.
 
 ---
