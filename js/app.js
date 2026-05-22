@@ -815,6 +815,26 @@ const TodoWidget = {
   },
 
   /**
+   * Persist the current visual task order from the DOM into State and Storage.
+   * @returns {boolean} True when an order was persisted.
+   */
+  persistTaskOrderFromDom() {
+    const list = document.getElementById('todo-list');
+    if (!list) return false;
+
+    const orderedIds = Array.from(list.querySelectorAll('li[data-id]')).map((li) => li.dataset.id);
+    if (orderedIds.length !== State.tasks.length) return false;
+
+    const taskById = new Map(State.tasks.map((task) => [task.id, task]));
+    const orderedTasks = orderedIds.map((id) => taskById.get(id));
+    if (orderedTasks.some((task) => !task)) return false;
+
+    State.tasks = orderedTasks;
+    Storage.set('tasks', State.tasks);
+    return true;
+  },
+
+  /**
    * Persist the DOM order after a drag-and-drop reorder.
    * @param {DragEvent} event
    */
@@ -822,14 +842,7 @@ const TodoWidget = {
     if (!this._draggedTaskId) return;
 
     event.preventDefault();
-    const list = document.getElementById('todo-list');
-    if (!list) return;
-
-    const orderedIds = Array.from(list.querySelectorAll('li[data-id]')).map((li) => li.dataset.id);
-    State.tasks = orderedIds
-      .map((id) => State.tasks.find((task) => task.id === id))
-      .filter(Boolean);
-    Storage.set('tasks', State.tasks);
+    this.persistTaskOrderFromDom();
     this.handleDragEnd();
     this.render();
   },
@@ -838,6 +851,10 @@ const TodoWidget = {
    * Clear drag state and row styling.
    */
   handleDragEnd() {
+    if (this._draggedTaskId) {
+      this.persistTaskOrderFromDom();
+    }
+
     this._draggedTaskId = null;
     document.querySelectorAll('#todo-list li.dragging').forEach((row) => {
       row.classList.remove('dragging');
