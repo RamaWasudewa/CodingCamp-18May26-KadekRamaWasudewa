@@ -332,6 +332,22 @@ const TimerWidget = {
   },
 
   /**
+   * Sync remaining time with the real clock instead of trusting interval timing.
+   * @returns {boolean} True when at least one second elapsed.
+   */
+  _syncRemainingWithClock() {
+    if (!this.timerState.running || !this.timerState.startedAt) return false;
+
+    const now = Date.now();
+    const elapsed = Math.floor((now - this.timerState.startedAt) / 1000);
+    if (elapsed <= 0) return false;
+
+    this.timerState.remaining = Math.max(0, this.timerState.remaining - elapsed);
+    this.timerState.startedAt += elapsed * 1000;
+    return true;
+  },
+
+  /**
    * Persist the current timer state to localStorage so it survives refresh.
    * Saves: remaining, running, startedAt.
    */
@@ -444,6 +460,7 @@ const TimerWidget = {
   stop() {
     if (!this.timerState.running) return;
 
+    this._syncRemainingWithClock();
     clearInterval(this.timerState.intervalId);
     this.timerState.intervalId = null;
     this.timerState.running    = false;
@@ -473,11 +490,11 @@ const TimerWidget = {
   },
 
   /**
-   * Decrement remaining seconds by one; stop and notify when reaching 00:00.
+   * Sync remaining time with the clock; stop and notify when reaching 00:00.
    * Requirement 3.3, 3.6
    */
   countdown() {
-    this.timerState.remaining -= 1;
+    if (!this._syncRemainingWithClock()) return;
 
     if (this.timerState.remaining <= 0) {
       this.timerState.remaining  = 0;
@@ -491,7 +508,6 @@ const TimerWidget = {
       const notification = document.getElementById('timer-notification');
       if (notification) notification.removeAttribute('hidden');
     } else {
-      this.timerState.startedAt = Date.now();
       this._persist();
     }
 
