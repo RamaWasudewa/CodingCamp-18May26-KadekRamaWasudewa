@@ -291,7 +291,7 @@ const TimerWidget = {
     remaining: 1500,
     intervalId: null,
     running: false,
-    startedAt: null,   // Date.now() snapshot when timer last started
+    startedAt: null,   // Date.now() snapshot for the last persisted remaining value
   },
 
   /**
@@ -318,7 +318,7 @@ const TimerWidget = {
     let { remaining, running, startedAt } = saved;
 
     if (running && startedAt) {
-      // Calculate elapsed seconds since the timer was last started
+      // Calculate elapsed seconds since the timer snapshot was last saved
       const elapsed = Math.floor((Date.now() - startedAt) / 1000);
       remaining = Math.max(0, remaining - elapsed);
     }
@@ -331,6 +331,7 @@ const TimerWidget = {
     if (running && remaining > 0) {
       this.timerState.startedAt = Date.now();
       this.timerState.running   = true;
+      this._persist();
       this.timerState.intervalId = setInterval(() => this.countdown(), 1000);
     }
 
@@ -425,6 +426,7 @@ const TimerWidget = {
       const notification = document.getElementById('timer-notification');
       if (notification) notification.removeAttribute('hidden');
     } else {
+      this.timerState.startedAt = Date.now();
       this._persist();
     }
 
